@@ -4,33 +4,50 @@
 #include <string.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <inttypes.h>
 
 #include "common/utility.h"
 
-#define BUILD_PATH "/build/source\0"
+char* str_r_str(char* str, const char* target)
+{
+   char* str_end = str;
+   while(*str_end != 0) ++str_end;
+   --str_end;
+   char const* target_end = target;
+   while(*target_end != 0) ++target_end;
+   --target_end;
+   do
+   {
+      char* str_local_end = str_end;
+      char const* target_local_end = target_end;
+      while(*str_local_end == *target_local_end)
+      {
+         if(target_local_end == target)
+            return str_local_end;
+         if(str_local_end == str)
+            return NULL;
+         --target_local_end;
+         --str_local_end;
+      }
+      --str_end;
+   }
+   while(str_end != str);
+   return NULL;
+}
 
-char *find_build_path() {
-	char *path = (char *)malloc(strlen(__FILE__) + strlen(BUILD_PATH));
-	char *right;
-	char *left;
+char *find_build_path()
+{
+   enum {max_path_size = 200};
+   char* buffer = (char *)malloc(max_path_size);
+   char* path = getcwd(buffer, max_path_size);
+   if(path == NULL)
+      throw("Error finding build path");
 
-	strcpy(path, __FILE__);
-	right = path + strlen(__FILE__);
-	left = right - strlen("ipc-bench");
+   assert(strlen);
 
-	// Make the string-comparison expected O(N)
-	// by only doing a string-comparison when
-	// the first and last character match
-	for (--right; left >= path; --left, --right) {
-		if (*left == 'i' && *right == 'h') {
-			if (strncmp("ipc-bench", left, 9) == 0) {
-				break;
-			}
-		}
-	}
-
-	// ++ because right is on the 'h'
-	strcpy(++right, BUILD_PATH);
+   char const marker[] = "/source";
+   char* const path_end = str_r_str(path, marker);
+   *(path_end + sizeof(marker) - 1) = 0;
 
 	return path;
 }
@@ -39,7 +56,7 @@ char *find_build_path() {
 void start_process(char *argv[]) {
 	// Will need to set the group id
 	const pid_t parent_pid = getpid();
-	const pid_t pid = fork();
+   const pid_t pid = fork();
 
 	if (pid == 0) {
 		// Set group id of the children so that we
@@ -76,8 +93,8 @@ void start_child(char *name, int argc, char *argv[]) {
 }
 
 void start_children(char *prefix, int argc, char *argv[]) {
-	char server_name[100];
-	char client_name[100];
+   char server_name[200];
+   char client_name[200];
 
 	char *build_path = find_build_path();
 
