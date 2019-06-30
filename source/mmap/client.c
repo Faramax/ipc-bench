@@ -12,7 +12,7 @@
 int get_file_descriptor() {
 	// Open a new file descriptor, creating the file if it does not exist
 	// 0666 = read + write access for user, group and world
-	int file_descriptor = open("/tmp/mmap", O_RDWR | O_CREAT, 0666);
+	int file_descriptor = open("/dev/shm/mmap", O_RDWR | O_CREAT, 0666);
 
 	if (file_descriptor < 0) {
 		throw("Error opening file!\n");

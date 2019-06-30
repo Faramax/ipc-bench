@@ -38,15 +38,15 @@ char *find_build_path() {
 
 void start_process(char *argv[]) {
 	// Will need to set the group id
-	const pid_t parent_pid = getpid();
+	//const pid_t parent_pid = getpid();
 	const pid_t pid = fork();
 
 	if (pid == 0) {
 		// Set group id of the children so that we
 		// can send around signals
-		if (setpgid(pid, parent_pid) == -1) {
-			throw("Could not set group id for child process");
-		}
+		//if (setregid(pid, parent_pid) == -1) {
+		//	throw("Could not set group id for child process");
+		//}
 		// Replace the current process with the command
 		// we want to execute (child or server)
 		// First argument is the command to call,
