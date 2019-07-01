@@ -35,14 +35,11 @@ char* str_r_str(char* str, const char* target)
    return NULL;
 }
 
-char *find_build_path()
+char *find_build_path(char *current_binary_path)
 {
    enum {max_path_size = 200};
-   char* buffer = (char *)malloc(max_path_size);
-   char* path = getcwd(buffer, max_path_size);
-   if(path == NULL)
-      throw("Error finding build path");
-
+   char* buffer = (char *)malloc(strlen(current_binary_path) + 1);
+   char* path = strcpy(buffer, current_binary_path);
    char const marker[] = "/source";
    char* const path_end = str_r_str(path, marker);
    if(path_end)
@@ -97,7 +94,10 @@ void start_children(char *prefix, int argc, char *argv[]) {
    char server_name[200];
    char client_name[200];
 
-	char *build_path = find_build_path();
+   assert(argc);
+   char *build_path = find_build_path(argv[0]);
+   if(build_path == NULL)
+      throw("Error finding build path");
 
 	// clang-format off
 	sprintf(
