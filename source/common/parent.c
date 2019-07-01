@@ -1,3 +1,6 @@
+#include <string.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 #include "common/parent.h"
 #include "common/arguments.h"
 #include "common/process.h"
@@ -9,4 +12,5 @@ void setup_parent(char* name, int argc, char* argv[]) {
 	}
 	setup_parent_signals();
 	start_children(name, argc, argv);
+   waitpid(0, NULL, 0);
 }
