@@ -49,7 +49,14 @@ if (ZMQ_FOUND)
 	add_subdirectory(zeromq)
 endif()
 
-add_custom_target(copy_script ALL)
-ADD_CUSTOM_COMMAND(TARGET copy_script POST_BUILD
-   COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/run-all.sh ${CMAKE_CURRENT_BINARY_DIR}/
+set(SCRIPTS
+   run-all.sh
+   print_results.sh
+   bench.sh
 )
+add_custom_target(copy_script ALL)
+foreach (_File ${SCRIPTS})
+   ADD_CUSTOM_COMMAND(TARGET copy_script POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/${_File} ${CMAKE_CURRENT_BINARY_DIR}/
+   )
+endforeach()
