@@ -43,13 +43,14 @@ char *find_build_path()
    if(path == NULL)
       throw("Error finding build path");
 
-   assert(strlen);
-
    char const marker[] = "/source";
    char* const path_end = str_r_str(path, marker);
-   *(path_end + sizeof(marker) - 1) = 0;
-
-	return path;
+   if(path_end)
+   {
+      *(path_end + sizeof(marker) - 1) = 0;
+      return path;
+   }
+   return NULL;
 }
 
 
