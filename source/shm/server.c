@@ -5,6 +5,8 @@
 #include <string.h>
 #include <sys/shm.h>
 #include <unistd.h>
+#define __USE_GNU
+#include <pthread.h>
 
 #include "common/common.h"
 
@@ -25,12 +27,22 @@ void cleanup(int segment_id, char* shared_memory) {
 	shmctl(segment_id, IPC_RMID, NULL);
 }
 
-void shm_wait(atomic_char* guard) {
-	while (atomic_load(guard) != 's')
-		;
+void shm_wait(cvar_t* cvar) {
+   if (pthread_cond_wait(&cvar->cv, &cvar->m))
+      perror("pthread_cond_wait");
 }
 
-void shm_notify(atomic_char* guard) {
+void shm_notify(cvar_t* cvar) {
+   if (pthread_cond_signal(&cvar->cv))
+      perror("pthread_cond_signal");
+}
+
+void shm_waitinit(atomic_char* guard) {
+	while (atomic_load(guard) != 's')
+      ;
+}
+
+void shm_notify_finish(atomic_char* guard) {
 	atomic_store(guard, 'c');
 }
 
@@ -38,27 +50,31 @@ void communicate(char* shared_memory, struct Arguments* args) {
 	struct Benchmarks bench;
 	int message;
 	void* buffer = malloc(args->size);
-	atomic_char* guard = (atomic_char*)shared_memory;
+   atomic_char* guard = (atomic_char*)(shared_memory + sizeof(cvar_t));
 
 	// Wait for signal from client
-	shm_wait(guard);
+   shm_waitinit(guard);
 	setup_benchmarks(&bench);
 
-	for (message = 0; message < args->count; ++message) {
+   cvar_t * cvar= (cvar_t *) shared_memory;
+   pthread_mutex_lock(&cvar->m);
+
+   size_t sz = args->size - sizeof(cvar_t) - sizeof(atomic_char);
+   for (message = 0; message < args->count; ++message) {
 		bench.single_start = now();
 
 		// Write
-		memset(shared_memory + 1, '*', args->size);
+      memset(shared_memory + sizeof(cvar_t) + sizeof(atomic_char), '*', sz);
 
-		shm_notify(guard);
-		shm_wait(guard);
+      shm_notify(cvar);
+      shm_wait(cvar);
 
 		// Read
-		memcpy(buffer, shared_memory + 1, args->size);
+      memcpy(buffer, shared_memory + sizeof(cvar_t) + sizeof(atomic_char), sz);
 
 		benchmark(&bench);
 	}
-
+   shm_notify_finish(guard);
 	evaluate(&bench, args);
 	free(buffer);
 }
@@ -98,7 +114,7 @@ int main(int argc, char* argv[]) {
 			- Use `ipcs -m` to show shared memory segments and their IDs
 			- Use `ipcrm -m <segment_id>` to remove/deallocate a shared memory segment
 	*/
-	segment_id = shmget(segment_key, 1 + args.size, IPC_CREAT | 0666);
+   segment_id = shmget(segment_key, args.size, IPC_CREAT | 0666);
 
 	if (segment_id < 0) {
 		throw("Error allocating segment");
@@ -126,7 +142,6 @@ int main(int argc, char* argv[]) {
 	if (shared_memory == (char*)-1) {
 		throw("Error attaching segment");
 	}
-
 	communicate(shared_memory, &args);
 
 	cleanup(segment_id, shared_memory);

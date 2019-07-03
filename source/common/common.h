@@ -6,4 +6,9 @@
 #include "common/signals.h"
 #include "common/utility.h"
 
+typedef struct {
+   pthread_cond_t cv;
+   pthread_mutex_t m;
+} cvar_t;
+
 #endif /* IPC_BENCH_COMMON_H */

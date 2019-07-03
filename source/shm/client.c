@@ -6,6 +6,8 @@
 #include <string.h>
 #include <sys/shm.h>
 #include <unistd.h>
+#define __USE_GNU
+#include <pthread.h>
 
 #include "common/common.h"
 
@@ -15,34 +17,84 @@ void cleanup(char* shared_memory) {
 	shmdt(shared_memory);
 }
 
-void shm_wait(atomic_char* guard) {
-	while (atomic_load(guard) != 'c')
-		;
+void shm_wait(cvar_t* cvar) {
+   if (pthread_cond_wait(&cvar->cv, &cvar->m))
+      perror("pthread_cond_wait");
+   //while (atomic_load(guard) != 'c')
+   //   pthread_yield();;
 }
 
-void shm_notify(atomic_char* guard) {
-	atomic_store(guard, 's');
+
+void shm_notify(cvar_t* cvar) {
+   if (pthread_cond_signal(&cvar->cv))
+      perror("pthread_cond_signal");
+   //atomic_store(guard, 's');
+}
+
+void shm_notifyinit(atomic_char* guard) {
+   atomic_store(guard, 's');
+}
+
+void shm_wait_for_finish(atomic_char* guard) {
+   while (atomic_load(guard) != 'c')
+      ;
 }
 
 void communicate(char* shared_memory, struct Arguments* args) {
 	// Buffer into which to read data
 	void* buffer = malloc(args->size);
 
-	atomic_char* guard = (atomic_char*)shared_memory;
-	atomic_init(guard, 's');
-	assert(sizeof(atomic_char) == 1);
+   atomic_char* guard = (atomic_char*)(shared_memory + sizeof(cvar_t));
+   atomic_init(guard, 't');
+   assert(sizeof(atomic_char) == 1);
 
-	for (; args->count > 0; --args->count) {
-		shm_wait(guard);
+   /* Initialise attribute to mutex. */
+   pthread_mutexattr_t attrmutex;
+   pthread_mutexattr_init(&attrmutex);
+   if (pthread_mutexattr_setpshared(&attrmutex, PTHREAD_PROCESS_SHARED) < 0) {
+      perror("mutex_setpshared");
+      exit(EXIT_FAILURE);
+   }
+   /* Initialise attribute to condition. */
+   pthread_condattr_t attrcond;
+   pthread_condattr_init(&attrcond);
+   if (pthread_condattr_setpshared(&attrcond, PTHREAD_PROCESS_SHARED) < 0) {
+      perror("cv_setpshared");
+      exit(EXIT_FAILURE);
+   }
+
+   cvar_t * cvar= (cvar_t *) shared_memory;
+
+   if (pthread_mutex_init(&cvar->m, &attrmutex) < 0) {
+      perror("mutex_init");
+      exit(EXIT_FAILURE);
+   }
+
+   if (pthread_cond_init(&cvar->cv, &attrcond) < 0) {
+      perror("cv_init");
+      exit(EXIT_FAILURE);
+   }
+
+   pthread_mutex_lock(&cvar->m);
+
+   shm_notifyinit(guard);
+
+   size_t sz = args->size - sizeof(cvar_t) - sizeof(atomic_char);
+   for (; args->count > 0; --args->count) {
+      shm_wait(cvar);
 		// Read
-		memcpy(buffer, shared_memory + 1, args->size);
+      memcpy(buffer, shared_memory + sizeof(cvar_t) + sizeof(atomic_char), sz);
 
 		// Write back
-		memset(shared_memory + 1, '*', args->size);
+      memset(shared_memory + sizeof(cvar_t)+ sizeof(atomic_char), '*', sz);
 
-		shm_notify(guard);
+      shm_notify(cvar);
 	}
-
+   shm_wait_for_finish(guard);
+   pthread_cond_destroy(&cvar->cv);
+   pthread_condattr_destroy(&attrcond);
+   pthread_mutex_destroy(&cvar->m);
+   pthread_mutexattr_destroy(&attrmutex);
 	free(buffer);
 }
 
@@ -78,7 +130,7 @@ int main(int argc, char* argv[]) {
 		The call will return the segment ID if the key was valid,
 		else the call fails.
 	*/
-	segment_id = shmget(segment_key, 1 + args.size, IPC_CREAT | 0666);
+   segment_id = shmget(segment_key, args.size, IPC_CREAT | 0666);
 
 	if (segment_id < 0) {
 		throw("Could not get segment");
