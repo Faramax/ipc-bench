@@ -1,9 +1,10 @@
 #ifndef IPC_BENCH_BENCHMARKS_H
 #define IPC_BENCH_BENCHMARKS_H
+#include <stdint.h>
 
 struct Arguments;
 
-typedef unsigned long bench_t;
+typedef uint64_t bench_t;
 
 typedef struct Benchmarks {
 	// Start of the total benchmarking

@@ -13,9 +13,10 @@ bench_t now() {
 	return ((double)clock()) / CLOCKS_PER_SEC * 1e9;
 #else
 	struct timespec ts;
-	timespec_get(&ts, TIME_UTC);
+   //timespec_get(&ts, TIME_UTC);
+   clock_gettime(CLOCK_MONOTONIC, &ts);
 
-	return ts.tv_sec * 1e9 + ts.tv_nsec;
+   return ts.tv_sec * 1e9 + ts.tv_nsec;
 
 #endif
 }

@@ -16,7 +16,7 @@ endif()
 
 link_libraries(pthread)
 
-add_definitions(-D__MACH__)
+#add_definitions(-D__MACH__)
 
 ###########################################################
 ## DEPENDENCIES
