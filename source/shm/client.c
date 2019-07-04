@@ -90,6 +90,7 @@ void communicate(char* shared_memory, struct Arguments* args) {
 
       shm_notify(cvar);
 	}
+   pthread_mutex_unlock(&cvar->m);
    shm_wait_for_finish(guard);
    pthread_cond_destroy(&cvar->cv);
    pthread_condattr_destroy(&attrcond);
