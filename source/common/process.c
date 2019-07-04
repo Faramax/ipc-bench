@@ -5,6 +5,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <inttypes.h>
+#include <errno.h>
 
 #include "common/utility.h"
 
@@ -35,17 +36,58 @@ char* str_r_str(char* str, const char* target)
    return NULL;
 }
 
-char *find_build_path(char *current_binary_path)
+char* getexename(char* buf, size_t size)
+{
+    char linkname[64]; /* /proc/<pid>/exe */
+    pid_t pid;
+    int ret;
+
+    /* Get our PID and build the name of the link in /proc */
+    pid = getpid();
+
+    if (snprintf(linkname, sizeof(linkname), "/proc/%i/exe", pid) < 0)
+        {
+        /* This should only happen on large word systems. I'm not sure
+           what the proper response is here.
+           Since it really is an assert-like condition, aborting the
+           program seems to be in order. */
+        abort();
+        }
+
+
+    /* Now read the symbolic link */
+    ret = readlink(linkname, buf, size);
+
+    /* In case of an error, leave the handling up to the caller */
+    if (ret == -1)
+        return NULL;
+
+    /* Report insufficient buffer size */
+    if (ret >= size)
+        {
+        errno = ERANGE;
+        return NULL;
+        }
+
+    /* Ensure proper NUL termination */
+    buf[ret] = 0;
+
+    return buf;
+}
+
+char *find_build_path()
 {
    enum {max_path_size = 200};
-   char* buffer = (char *)malloc(strlen(current_binary_path) + 1);
-   char* path = strcpy(buffer, current_binary_path);
+   char* buffer = (char *)malloc(max_path_size);
+   char* exe_name = getexename(buffer, max_path_size);
+   if(exe_name == NULL)
+      return NULL;
    char const marker[] = "/source";
-   char* const path_end = str_r_str(path, marker);
+   char* const path_end = str_r_str(exe_name, marker);
    if(path_end)
    {
       *(path_end + sizeof(marker) - 1) = 0;
-      return path;
+      return exe_name;
    }
    return NULL;
 }
@@ -93,7 +135,7 @@ void start_children(char *prefix, int argc, char *argv[]) {
    char client_name[200];
 
    assert(argc);
-   char *build_path = find_build_path(argv[0]);
+   char *build_path = find_build_path();
    if(build_path == NULL)
       throw("Error finding build path");
 
